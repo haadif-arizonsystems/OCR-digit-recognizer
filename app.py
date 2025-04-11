@@ -9,7 +9,7 @@ app = FastAPI()
 
 model = YOLO("weights/best.pt")
 
-@app.post("g")
+@app.post("/")
 async def predict_digits(file: UploadFile = File(...)):
     image_bytes = await file.read()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
