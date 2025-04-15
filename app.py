@@ -5,11 +5,13 @@ from PIL import Image
 import numpy as np
 import io
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None)
 
 model = YOLO("weights/best.pt")
-
-@app.post("/")
+@app.get('/')
+async def runs():
+    return 'App \'s Running'
+@app.post("predict/")
 async def predict_digits(file: UploadFile = File(...)):
     image_bytes = await file.read()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
