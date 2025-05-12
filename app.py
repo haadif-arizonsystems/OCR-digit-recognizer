@@ -62,12 +62,13 @@ async def predict_digits(file: UploadFile = File(...)):
     img_np = np.array(image)
     results = model.predict(img_np, conf=0.5)[0]
     boxes = results.boxes
+    names = results.names
     digits_with_x = [
         (int(cls.item()), box[0].item())  # (class_id, x1)
         for cls, box in zip(boxes.cls, boxes.xyxy)
     ]
     digits_sorted = sorted(digits_with_x, key=lambda d: d[1])
-    digit_string = ''.join(str(d[0]) for d in digits_sorted)
+    digit_string = ''.join(names[d[0]] for d in digits_sorted)
     
     return JSONResponse(content={
         "digits": digit_string,
