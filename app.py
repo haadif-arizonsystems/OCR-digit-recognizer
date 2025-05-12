@@ -7,6 +7,8 @@ from PIL import Image
 import numpy as np
 import io
 import os
+import shutil
+from datetime import datetime
 
 app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -25,6 +27,10 @@ static_dir = os.path.join(current_dir, "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Create uploads directory
+uploads_dir = os.path.join(current_dir, "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
+
 model = YOLO("weights/best.pt")
 
 @app.get('/', response_class=HTMLResponse)
@@ -38,15 +44,39 @@ async def health():
 
 @app.post("/predict/")
 async def predict_digits(file: UploadFile = File(...)):
+    # Save the uploaded file to the uploads directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_extension = os.path.splitext(file.filename)[1]
+    file_name = f"{timestamp}{file_extension}"
+    file_path = os.path.join(uploads_dir, file_name)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Reset the file pointer to the beginning for processing
+    await file.seek(0)
+    
+    # Process the image for prediction
     image_bytes = await file.read()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     img_np = np.array(image)
     results = model.predict(img_np, conf=0.5)[0]
     boxes = results.boxes
+    names = results.names
     digits_with_x = [
         (int(cls.item()), box[0].item())  # (class_id, x1)
         for cls, box in zip(boxes.cls, boxes.xyxy)
     ]
     digits_sorted = sorted(digits_with_x, key=lambda d: d[1])
-    digit_string = ''.join(str(d[0]) for d in digits_sorted)
-    return JSONResponse(content={"digits": digit_string})
+    digit_string = ''.join(names[d[0]] for d in digits_sorted)
+    
+    return JSONResponse(content={
+        "digits": digit_string,
+        "saved_file": file_path
+    })
+
+# Add a new endpoint to list all uploaded files
+@app.get("/uploads/")
+async def list_uploads():
+    files = os.listdir(uploads_dir)
+    return {"uploads": files}
